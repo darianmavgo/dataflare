@@ -57,7 +57,7 @@ export const Footer = () => {
                 />
             </div>
             <div className='mt-2 flex justify-center gap-3 text-xs text-tertiary'>
-                <span>Dataflare v{version}</span>
+                <span>Sqliteflare v{version}</span>
                 <span>{__BUILD_DATE__}</span>
             </div>
         </>

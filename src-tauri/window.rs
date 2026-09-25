@@ -8,10 +8,9 @@ use tauri::async_runtime::block_on;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent, command};
 use tokio::sync::oneshot;
 
-#[cfg(target_os = "linux")]
-use std::path::{Component, Path, PathBuf};
-#[cfg(target_os = "windows")]
 use std::path::{Path, PathBuf};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::path::Component;
 #[cfg(target_os = "macos")]
 use {
     std::sync::{Arc, Mutex},
@@ -48,7 +47,7 @@ pub async fn show_connections_window(app: AppHandle) -> Result<(), String> {
         CONNECTIONS_WINDOW,
         WebviewUrl::App("connections.html".into()),
     )
-    .title("Dataflare")
+    .title("Sqliteflare")
     .inner_size(660., 440.)
     .min_inner_size(660., 440.)
     .visible(false)
@@ -92,7 +91,7 @@ pub async fn show_settings_window(app: AppHandle, tab: Option<String>) -> Result
         SETTINGS_WINDOW,
         WebviewUrl::App("settings.html".into()),
     )
-    .title("Dataflare")
+    .title("Sqliteflare")
     .inner_size(720., 460.)
     .min_inner_size(720., 460.)
     .maximizable(false)
@@ -135,7 +134,7 @@ pub async fn show_activate_window(app: AppHandle) -> Result<(), String> {
         ACTIVATE_WINDOW,
         WebviewUrl::App("activate.html".into()),
     )
-    .title("Dataflare")
+    .title("Sqliteflare")
     .inner_size(640., 500.)
     .min_inner_size(640., 500.)
     .maximizable(false)
@@ -175,7 +174,7 @@ pub async fn show_backup_window(
     }
     let mut builder =
         WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("backup.html".into()))
-            .title("Dataflare")
+            .title("Sqliteflare")
             .inner_size(520., 420.)
             .min_inner_size(520., 420.)
             .visible(false)
@@ -235,7 +234,7 @@ pub async fn new_database_window(
 
     let mut builder =
         WebviewWindowBuilder::new(&app, label, WebviewUrl::App("database.html".into()))
-            .title("Dataflare")
+            .title("Sqliteflare")
             .inner_size(900., 600.)
             .min_inner_size(780., 420.)
             .visible(false)
@@ -275,6 +274,76 @@ fn connection_script(conn: &ConnectionItemResult) -> Result<String, String> {
         .replace('\'', "\\'");
     let script = format!(r#"window.__CONNECTION = '{val}';"#);
     Ok(script)
+}
+
+#[command]
+pub async fn open_sqlite_file(app: AppHandle, path: String, readonly: bool) -> Result<(), String> {
+    let client = app.state::<Client>();
+    let connections = connection_list(client.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let find = connections.into_iter().find(|c| match &c.config {
+        ConnectionConfig::SQLite(c) => c.path == path,
+        _ => false,
+    });
+
+    if let Some(mut conn) = find {
+        let mut needs_update = false;
+        if let ConnectionConfig::SQLite(ref mut s) = conn.config {
+            if s.readonly != readonly {
+                s.readonly = readonly;
+                needs_update = true;
+            }
+        }
+        if needs_update {
+            crate::client::update_connection(
+                client.clone(),
+                conn.cid.clone(),
+                conn.name.clone(),
+                conn.config.clone(),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+        new_database_window(app.clone(), conn, true, needs_update).await
+    } else {
+        let name = filename(&path);
+        let config = ConnectionConfig::SQLite(SqliteConfig {
+            path,
+            readonly,
+            initial: None,
+        });
+        let cid = create_connection(client.clone(), name.clone(), config.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+        let item = ConnectionItemResult { cid, name, config };
+        new_database_window(app.clone(), item, true, true).await
+    }
+}
+
+pub fn pick_sqlite_file(app: &AppHandle, readonly: bool) {
+    use tauri_plugin_dialog::DialogExt;
+    let app_handle = app.clone();
+    app.dialog()
+        .file()
+        .add_filter("SQLite Database", &["db", "sqlite", "sqlite3"])
+        .pick_file(move |file_path| {
+            if let Some(path) = file_path {
+                let path_str = match path {
+                    tauri_plugin_dialog::FilePath::Path(p) => p.to_string_lossy().to_string(),
+                    tauri_plugin_dialog::FilePath::Url(u) => match u.to_file_path() {
+                        Ok(p) => p.to_string_lossy().to_string(),
+                        Err(_) => u.path().to_string(),
+                    },
+                };
+                tauri::async_runtime::spawn(async move {
+                    if let Err(err) = open_sqlite_file(app_handle, path_str, readonly).await {
+                        eprintln!("Failed to open sqlite file: {err}");
+                    }
+                });
+            }
+        });
 }
 
 #[cfg(target_os = "macos")]
@@ -324,7 +393,6 @@ impl OpenedWindowQueue {
     }
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
 pub fn open_sql_window_from_args(
     app: &AppHandle,
     cwd: Option<String>,
@@ -404,7 +472,6 @@ fn open_sql_windows_from_paths(app: &AppHandle, files: Vec<String>) {
     }
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
 fn absolute_path(path: String, cwd: &Option<String>) -> Result<String, String> {
     if Path::new(&path).is_absolute() {
         return Ok(path);
@@ -418,13 +485,13 @@ fn absolute_path(path: String, cwd: &Option<String>) -> Result<String, String> {
     {
         Ok(root.join(path).to_string_lossy().into())
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
         Ok(normalize_path(&root.join(path)).to_string_lossy().into())
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn normalize_path(path: &Path) -> PathBuf {
     let mut components = path.components().peekable();
     let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {

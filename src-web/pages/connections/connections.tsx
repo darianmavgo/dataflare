@@ -67,7 +67,7 @@ export const Connections = () => {
 
     return (
         <div className='flex size-full flex-col'>
-            <Titlebar title='Dataflare' />
+            <Titlebar title='Sqliteflare' />
             <SplitView
                 direction={Direction.Horizontal}
                 pin={Pin.First}

@@ -24,7 +24,7 @@ pub fn delete_password(user: String) -> Result<(), String> {
 
 #[cfg(not(all(debug_assertions, target_os = "macos")))]
 fn entry(user: String) -> Result<keyring::Entry, String> {
-    keyring::Entry::new("Dataflare", &user).map_err(|e| e.to_string())
+    keyring::Entry::new("Sqliteflare", &user).map_err(|e| e.to_string())
 }
 #[cfg(all(debug_assertions, target_os = "macos"))]
 fn entry(user: String) -> Result<MacDebugEntry, String> {

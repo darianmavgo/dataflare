@@ -25,6 +25,18 @@ pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::quit(app, None)?,
         ],
     )?;
+    let file = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[
+            &MenuItemBuilder::with_id("open_sqlite", "Open SQLite Database...")
+                .accelerator("CmdOrCtrl+O")
+                .build(app)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::close_window(app, None)?,
+        ],
+    )?;
     let edit = Submenu::with_items(
         app,
         "Edit",
@@ -58,7 +70,7 @@ pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::maximize(app, None)?,
         ],
     )?;
-    let menu = Menu::with_items(app, &[&main, &edit, &view, &window])?;
+    let menu = Menu::with_items(app, &[&main, &file, &edit, &view, &window])?;
     Ok(menu)
 }
 
@@ -66,6 +78,9 @@ pub fn menu_event(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         "settings" => {
             spawn(show_settings_window(app.app_handle().clone(), None));
+        }
+        "open_sqlite" => {
+            crate::window::pick_sqlite_file(app, true);
         }
         _ => {}
     };

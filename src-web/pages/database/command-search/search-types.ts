@@ -6,7 +6,7 @@ export enum SearchType {
     NewTable,
     NewQuery,
     AiAssistant,
-    ManageConnection,
+    OpenSqliteFile,
     Dashboard,
     SchemaManager,
     FunctionManager,
@@ -31,7 +31,7 @@ export type SearchItem = (
           type: SearchType.AiAssistant
       }
     | {
-          type: SearchType.ManageConnection
+          type: SearchType.OpenSqliteFile
       }
     | {
           type: SearchType.Dashboard

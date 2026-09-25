@@ -1,9 +1,10 @@
 import { Root, Portal, Content, Title } from '@radix-ui/react-dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
+import { open } from '@tauri-apps/plugin-dialog'
 import { FormEvent, KeyboardEvent, useState } from 'react'
 import { useSearch } from '../../../hooks/use-search'
 import { useTranslation } from '../../../i18n'
-import { newDatabaseWindow, showBackupWindow, showConnectionsWindow } from '../../../tauri'
+import { newDatabaseWindow, openSqliteFile, showBackupWindow } from '../../../tauri'
 import { Message, VirtualList } from '../../../ui'
 import { useChatPanel } from '../ai'
 import { useCreateQuery } from '../hooks/use-querys'
@@ -53,8 +54,22 @@ export default function CommnadSearchPopup({ onClose }: { onClose: () => void })
             case SearchType.AiAssistant: {
                 return toggleChatPanel()
             }
-            case SearchType.ManageConnection: {
-                return showConnectionsWindow()
+            case SearchType.OpenSqliteFile: {
+                open({
+                    multiple: false,
+                    directory: false,
+                    filters: [
+                        {
+                            name: 'SQLite Database',
+                            extensions: ['db', 'sqlite', 'sqlite3']
+                        }
+                    ]
+                }).then((selected) => {
+                    if (selected !== null) {
+                        openSqliteFile(selected as string, true)
+                    }
+                })
+                return
             }
             case SearchType.Dashboard: {
                 return switchTabTo({ type: TabType.Dashboard })

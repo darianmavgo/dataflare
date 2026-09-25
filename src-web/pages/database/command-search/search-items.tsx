@@ -1,4 +1,4 @@
-import { IconDatabase, IconPlugConnected, IconPlugConnectedX, IconMessage } from '@tabler/icons-react'
+import { IconDatabase, IconFolderOpen, IconPlugConnectedX, IconMessage } from '@tabler/icons-react'
 import { useEffect, useMemo } from 'react'
 import useSWR from 'swr'
 import { useFuzzySearch } from '../../../hooks/use-fuzzy-search'
@@ -70,9 +70,9 @@ const useSqlList = (search: string) => {
                 icon: <IconMessage size={16} strokeWidth={1.5} />
             },
             {
-                type: SearchType.ManageConnection,
-                title: t('manageConnection'),
-                icon: <IconPlugConnected className='text-primary' size={16} strokeWidth={1.5} />
+                type: SearchType.OpenSqliteFile,
+                title: 'Open SQLite File (Read Only)',
+                icon: <IconFolderOpen className='text-primary' size={16} strokeWidth={1.5} />
             },
             {
                 type: SearchType.Reconnect,
@@ -174,9 +174,9 @@ const useKvList = (search: string) => {
                 icon: <IconMessage size={16} strokeWidth={1.5} />
             },
             {
-                type: SearchType.ManageConnection,
-                title: t('manageConnection'),
-                icon: <IconPlugConnected className='text-primary' size={16} strokeWidth={1.5} />
+                type: SearchType.OpenSqliteFile,
+                title: 'Open SQLite File (Read Only)',
+                icon: <IconFolderOpen className='text-primary' size={16} strokeWidth={1.5} />
             },
             {
                 type: SearchType.Reconnect,

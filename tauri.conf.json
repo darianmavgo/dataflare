@@ -1,8 +1,8 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "Dataflare",
+    "productName": "Sqliteflare",
     "version": "3.2.1",
-    "identifier": "app.dataflare.desktop",
+    "identifier": "app.sqliteflare.desktop",
     "build": {
         "beforeDevCommand": "pnpm dev:web",
         "beforeBuildCommand": "pnpm build:web",
@@ -13,7 +13,7 @@
         "active": true,
         "targets": ["app", "dmg", "appimage", "nsis"],
         "category": "DeveloperTool",
-        "copyright": "Copyright © 2026 Dataflare.",
+        "copyright": "Copyright © 2026 Sqliteflare.",
         "shortDescription": "",
         "longDescription": "",
         "icon": [
@@ -63,7 +63,7 @@
                 "installerIcon": "icons/icon.ico"
             }
         },
-        "createUpdaterArtifacts": "v1Compatible"
+        "createUpdaterArtifacts": false
     },
     "app": {
         "security": {

@@ -53,11 +53,11 @@ export const Activate = () => {
 
     return (
         <div className='flex h-full flex-col'>
-            <Titlebar title={tf('activate', 'Dataflare')} minimizable={false} maximizable={false} />
+            <Titlebar title={tf('activate', 'Sqliteflare')} minimizable={false} maximizable={false} />
             <ScrollView className='grow' axis='y'>
                 <div className='mx-auto flex w-full max-w-96 flex-col px-3 py-6'>
-                    <img src={icon} alt='Dataflare Icon' className='pointer-events-none mx-auto size-20' />
-                    <h1 className='mt-4 text-center text-2xl text-primary'>{tf('activate', 'Dataflare')}</h1>
+                    <img src={icon} alt='Sqliteflare Icon' className='pointer-events-none mx-auto size-20' />
+                    <h1 className='mt-4 text-center text-2xl text-primary'>{tf('activate', 'Sqliteflare')}</h1>
                     <p className='mt-6 rounded-lg border border-dashed border-yellow-500/50 bg-yellow-500/10 p-4 text-center text-xs text-secondary text-yellow-500'>
                         {t('activateLimit')}
                     </p>

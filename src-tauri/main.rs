@@ -22,7 +22,7 @@ mod menu;
 
 use database::ConnectionStore;
 use lifecycle::{AppCheckUpdate, ConnectionsSearch, LicenseActivate, StateCache};
-use tauri::async_runtime::{block_on, spawn};
+use tauri::async_runtime::block_on;
 use tauri::{Manager, RunEvent, WindowEvent, generate_handler};
 use window_state::WindowStateManager;
 
@@ -33,10 +33,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(
             #[allow(unused_variables)]
             |app, args, cwd| {
-                #[cfg(any(target_os = "windows", target_os = "linux"))]
-                {
-                    window::open_sql_window_from_args(app, Some(cwd), Some(args));
-                }
+                window::open_sql_window_from_args(app, Some(cwd), Some(args));
             },
         ))
         .plugin(tauri_plugin_opener::init())
@@ -73,6 +70,7 @@ fn main() {
         window::show_activate_window,
         window::show_backup_window,
         window::new_database_window,
+        window::open_sqlite_file,
         // Native
         native::set_theme,
         native::get_theme,
@@ -205,7 +203,10 @@ fn main() {
         {
             let queue = app.state::<window::OpenedWindowQueue>();
             if queue.is_empty() {
-                spawn(window::show_connections_window(app.app_handle().clone()));
+                let opened = window::open_sql_window_from_args(app.app_handle(), None, None);
+                if !opened {
+                    window::pick_sqlite_file(app.app_handle(), false);
+                }
             } else {
                 queue.open_all(app.app_handle());
             }
@@ -215,7 +216,7 @@ fn main() {
         {
             let opened = window::open_sql_window_from_args(app.app_handle(), None, None);
             if !opened {
-                spawn(window::show_connections_window(app.app_handle().clone()));
+                window::pick_sqlite_file(app.app_handle(), false);
             }
         }
 
@@ -227,11 +228,6 @@ fn main() {
             let app = window.app_handle();
             // Save window state when closing the window
             app.state::<WindowStateManager>().save(window);
-            // Open the connections window when closing the last non-connections window
-            if window.webview_windows().len() == 1 && window.label() != window::CONNECTIONS_WINDOW {
-                block_on(window::show_connections_window(app.clone()))
-                    .expect("Failed to show connections window");
-            }
             // Clean up database connections
             match window.label() {
                 window::CONNECTIONS_WINDOW | window::SETTINGS_WINDOW | window::ACTIVATE_WINDOW => {}
@@ -253,6 +249,12 @@ fn main() {
                 RunEvent::Opened { urls } => {
                     app.state::<window::OpenedWindowQueue>()
                         .try_opens(app, urls);
+                }
+                #[cfg(target_os = "macos")]
+                RunEvent::Reopen { has_visible_windows, .. } => {
+                    if !has_visible_windows {
+                        window::pick_sqlite_file(app, false);
+                    }
                 }
                 RunEvent::Exit => {
                     app.state::<WindowStateManager>().save_all(app);

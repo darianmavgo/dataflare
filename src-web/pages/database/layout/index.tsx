@@ -1,15 +1,16 @@
 import {
+    IconFolderOpen,
     IconLayoutDashboard,
     IconMessage,
     IconMessageFilled,
-    IconPlugConnected,
     IconSearch
 } from '@tabler/icons-react'
+import { open } from '@tauri-apps/plugin-dialog'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { memo, useMemo } from 'react'
 import { useShortcutMeta, useShortcutMetaNumber } from '../../../hooks/use-shortcut'
 import { useTranslation } from '../../../i18n'
-import { Connection, showConnectionsWindow } from '../../../tauri'
+import { Connection, openSqliteFile } from '../../../tauri'
 import { Direction, IconButton, Persistent, Pin, SplitView, Titlebar } from '../../../ui'
 import { keyboardTitleChars, KeyModifier } from '../../../utils/keyboard-char'
 import { ChatPanel, initChatPanelStatus, useChatPanel } from '../ai'
@@ -42,6 +43,22 @@ export const Main = () => {
     const showCommandSearch = useCommandSearch((state) => state.showCommandSearch)
     const isKv = useIsKv()
 
+    const onOpenSqlite = async () => {
+        const selected = await open({
+            multiple: false,
+            directory: false,
+            filters: [
+                {
+                    name: 'SQLite Database',
+                    extensions: ['db', 'sqlite', 'sqlite3']
+                }
+            ]
+        })
+        if (selected !== null) {
+            openSqliteFile(selected as string, true)
+        }
+    }
+
     const title = useMemo(() => {
         if (activeTab === null) {
             return connection.name
@@ -49,7 +66,7 @@ export const Main = () => {
         return `${getTabTitle(activeTab)} — ${connection.name}`
     }, [activeTab, connection])
 
-    useShortcutMeta('w,n,i,[,]', (key, shift) => {
+    useShortcutMeta('w,o,i,[,]', (key, shift) => {
         switch (key) {
             case 'w': {
                 if (activeTab === null) {
@@ -59,8 +76,8 @@ export const Main = () => {
                 }
                 break
             }
-            case 'n': {
-                !shift && showConnectionsWindow()
+            case 'o': {
+                !shift && onOpenSqlite()
                 break
             }
             case 'i': {
@@ -89,7 +106,7 @@ export const Main = () => {
     useShortcutMetaNumber(switchTabTo)
 
     const quickSearchTitle = keyboardTitleChars(t('quickSearch'), [KeyModifier.Meta, 'P'])
-    const manageConnectionTitle = keyboardTitleChars(t('manageConnection'), [KeyModifier.Meta, 'N'])
+    const openSqliteTitle = keyboardTitleChars('Open SQLite File', [KeyModifier.Meta, 'O'])
     const chatTitle = keyboardTitleChars(t('aiAssistant'), [KeyModifier.Shift, KeyModifier.Meta, 'I'])
     const dashboardTitle = keyboardTitleChars(t('dashboard'), [KeyModifier.Shift, KeyModifier.Meta, 'D'])
 
@@ -104,8 +121,8 @@ export const Main = () => {
                         <IconLayoutDashboard size={16} strokeWidth={1.5} />
                     </IconButton>
                 )}
-                <IconButton title={manageConnectionTitle} onClick={showConnectionsWindow}>
-                    <IconPlugConnected size={16} strokeWidth={1.5} />
+                <IconButton title={openSqliteTitle} onClick={onOpenSqlite}>
+                    <IconFolderOpen size={16} strokeWidth={1.5} />
                 </IconButton>
                 <IconButton title={chatTitle} onClick={() => toggleChatPanel()}>
                     {chatPanelOpened ? (

@@ -39,3 +39,10 @@ export const newDatabaseWindow = (
         reopenIfExists
     })
 }
+
+export const openSqliteFile = (path: string, readonly: boolean = true): Promise<void> => {
+    return invoke('open_sqlite_file', {
+        path,
+        readonly
+    })
+}

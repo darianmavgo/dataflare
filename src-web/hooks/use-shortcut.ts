@@ -1,6 +1,5 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useInsertionEffect, useRef } from 'react'
-import { showConnectionsWindow } from '../tauri'
 import { isMacOS } from '../utils/os'
 
 export const shortcutCloseWindowAndShowConnections = () => {
@@ -11,12 +10,6 @@ export const shortcutCloseWindowAndShowConnections = () => {
                     e.preventDefault()
                     e.stopPropagation()
                     getCurrentWindow().close()
-                    return
-                }
-                case 'n': {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    showConnectionsWindow()
                     return
                 }
             }
