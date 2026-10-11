@@ -237,6 +237,7 @@ pub async fn new_database_window(
             .title("Sqliteflare")
             .inner_size(900., 600.)
             .min_inner_size(780., 420.)
+            .maximized(true)
             .visible(false)
             .decorations(DECORATION)
             .disable_drag_drop_handler()
@@ -540,14 +541,14 @@ fn conn_config(path: String) -> ConnectionConfig {
     if path.ends_with(".duckdb") || path.ends_with(".ddb") {
         return ConnectionConfig::DuckDB(DuckDbConfig {
             path,
-            readonly: false,
+            readonly: true,
             initial: None,
         });
     }
     // Default to SQLite
     ConnectionConfig::SQLite(SqliteConfig {
         path,
-        readonly: false,
+        readonly: true,
         initial: None,
     })
 }

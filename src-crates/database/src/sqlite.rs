@@ -112,12 +112,90 @@ impl SqliteConnection {
         })
     }
 
+    // Builds one UNION ALL query over every table in every attached database that has a
+    // `win_rate` column, selecting `win_rate` plus the first 9 other columns of each table
+    #[allow(dead_code)]
+    pub(crate) async fn high_win_rate_sql(&self, threshold: f64) -> Result<Option<String>> {
+        const COLUMNS: usize = 10;
+        let mut selects = Vec::new();
+        let schemas = self
+            .select("SELECT name FROM pragma_database_list ORDER BY seq;".into())
+            .await?;
+        for [schema] in schemas.into_iter().filter_map(|r| <[Value; 1]>::try_from(r).ok()) {
+            let Value::String(schema) = schema else {
+                continue;
+            };
+            let tables = self
+                .select(format!(
+                    "SELECT name FROM {}.sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';",
+                    quote_id(&schema)
+                ))
+                .await?;
+            for table in tables {
+                let Some(Value::String(table)) = table.into_iter().next() else {
+                    continue;
+                };
+                let info = self
+                    .select(format!(
+                        "SELECT name FROM pragma_table_info({}, {});",
+                        quote_str(&table),
+                        quote_str(&schema)
+                    ))
+                    .await?;
+                let names = info
+                    .into_iter()
+                    .filter_map(|r| match r.into_iter().next() {
+                        Some(Value::String(n)) => Some(n),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                if !names.iter().any(|n| n == "win_rate") {
+                    continue;
+                }
+                let picked = std::iter::once("win_rate")
+                    .chain(names.iter().map(String::as_str).filter(|n| *n != "win_rate"))
+                    .take(COLUMNS)
+                    .collect::<Vec<_>>();
+                if picked.len() < COLUMNS {
+                    continue;
+                }
+                let cols = picked
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| format!("{} AS c{}", quote_id(c), i + 1))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                selects.push(format!(
+                    "SELECT {} AS source_db, {} AS source_table, {cols} FROM {}.{} WHERE win_rate > {threshold}",
+                    quote_str(&schema),
+                    quote_str(&table),
+                    quote_id(&schema),
+                    quote_id(&table)
+                ));
+            }
+        }
+        if selects.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(selects.join("\nUNION ALL\n") + ";"))
+    }
+
     pub(crate) async fn batch_insert(&self, insert: ChunkInsert) -> Result<()> {
         for sql in insert {
             self.execute(sql).await?;
         }
         Ok(())
     }
+}
+
+#[allow(dead_code)]
+fn quote_id(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}
+
+#[allow(dead_code)]
+fn quote_str(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
 }
 
 fn decode(v: ValueRef) -> Result<Value, rusqlite::Error> {
@@ -135,4 +213,79 @@ fn decode(v: ValueRef) -> Result<Value, rusqlite::Error> {
         }
     };
     Ok(v)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    const PLAYER_COLUMNS: &str = "id INTEGER, name TEXT, team TEXT, wins INTEGER, losses INTEGER, \
+        games INTEGER, rating REAL, region TEXT, season INTEGER, win_rate REAL";
+
+    fn temp_db(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("sqliteflare_{}_{name}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    fn seed(path: &PathBuf, table: &str, rows: &[(i64, &str, f64)]) {
+        let conn = Connection::open(path).unwrap();
+        conn.execute_batch(&format!("CREATE TABLE {table} ({PLAYER_COLUMNS});"))
+            .unwrap();
+        for (id, name, win_rate) in rows {
+            conn.execute(
+                &format!("INSERT INTO {table} VALUES (?1, ?2, 't', 9, 1, 10, 1500.0, 'r', 2026, ?3)"),
+                rusqlite::params![id, name, win_rate],
+            )
+            .unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn win_rate_above_90_across_attached_databases() {
+        let main_path = temp_db("main");
+        let other_path = temp_db("other");
+        seed(
+            &main_path,
+            "players",
+            &[(1, "ace", 0.95), (2, "mid", 0.5), (3, "edge", 0.9)],
+        );
+        seed(&other_path, "champions", &[(4, "star", 0.99), (5, "rookie", 0.1)]);
+
+        let conn = SqliteConnection::make_connection(
+            main_path.to_string_lossy().into(),
+            false,
+            Some(format!(
+                "ATTACH DATABASE {} AS other;",
+                quote_str(&other_path.to_string_lossy())
+            )),
+        )
+        .unwrap();
+
+        let sql = conn.high_win_rate_sql(0.9).await.unwrap().unwrap();
+        let result = conn.query(sql).await.unwrap();
+
+        // source_db + source_table + 10 selected columns
+        assert_eq!(result.columns.len(), 12);
+        let mut found = result
+            .rows
+            .iter()
+            .map(|r| match (&r[0], &r[1]) {
+                (Value::String(db), Value::String(t)) => format!("{db}.{t}"),
+                other => panic!("unexpected source columns: {other:?}"),
+            })
+            .collect::<Vec<_>>();
+        found.sort();
+        assert_eq!(found, vec!["main.players", "other.champions"]);
+        for row in &result.rows {
+            match row[2] {
+                Value::F64(rate) => assert!(rate > 0.9, "win_rate {rate} not > 0.9"),
+                ref other => panic!("win_rate not a float: {other:?}"),
+            }
+        }
+
+        let _ = std::fs::remove_file(main_path);
+        let _ = std::fs::remove_file(other_path);
+    }
 }

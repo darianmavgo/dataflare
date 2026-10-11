@@ -178,3 +178,22 @@ mod tests {
         assert_eq!(query.rows.len(), 3);
     }
 }
+
+#[cfg(test)]
+mod readonly_tests {
+    use crate::*;
+
+    #[tokio::test]
+    async fn test_readonly_open_backtest_file() {
+        let path = "/Users/darianhickman/Documents/trade_well/backtestgoduckdb/data/markov_models.duckdb";
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let conn = Connection::connect(path, true).await.unwrap();
+        assert!(conn.execute("create table t(i int)").is_err());
+        let query = conn
+            .query("select count(*) from information_schema.tables")
+            .unwrap();
+        assert_eq!(query.rows.len(), 1);
+    }
+}

@@ -1,5 +1,5 @@
-import { IconTableOptions } from '@tabler/icons-react'
-import { useMemo, useState, memo, useCallback, useEffect } from 'react'
+import { IconPlayerPlay, IconPlayerPause, IconTableOptions } from '@tabler/icons-react'
+import { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react'
 import { useScrollUtils } from '../../../hooks/use-scroll'
 import { useShortcutMeta } from '../../../hooks/use-shortcut'
 import { useTranslation } from '../../../i18n'
@@ -29,6 +29,20 @@ import {
     mergeSelectedSet
 } from './utils'
 import { Where } from './where'
+
+const TAIL_INTERVAL_MS = 2000
+
+const scrollToBottom = (root: HTMLElement | null) => {
+    if (root === null) {
+        return
+    }
+    for (const el of root.querySelectorAll<HTMLElement>('*')) {
+        if (el.scrollHeight > el.clientHeight + 1 && getComputedStyle(el).overflowY !== 'visible') {
+            el.scrollTop = el.scrollHeight
+            return
+        }
+    }
+}
 
 interface Props {
     hidden: boolean
@@ -126,6 +140,38 @@ export const TablePreviewInner = ({
         countIsValidating,
         countError
     ])
+
+    const [tail, setTail] = useState(false)
+    const tableContainerRef = useRef<HTMLDivElement>(null)
+    const hasPendingChanges =
+        (deletedRows !== undefined && deletedRows.size > 0) ||
+        (updatedCells !== undefined && updatedCells.size > 0)
+
+    useEffect(() => {
+        if (!tail || hidden || hasPendingChanges) {
+            return
+        }
+        const timer = setInterval(() => {
+            refreshRows()
+            refreshCount()
+        }, TAIL_INTERVAL_MS)
+        return () => {
+            clearInterval(timer)
+        }
+    }, [tail, hidden, hasPendingChanges])
+
+    const lastPage = Math.max(Math.ceil((count ?? 0) / limit), 1)
+    useEffect(() => {
+        if (tail && count !== undefined && page !== lastPage) {
+            setPage(lastPage)
+        }
+    }, [tail, count, lastPage])
+
+    useEffect(() => {
+        if (tail && tableData !== undefined) {
+            scrollToBottom(tableContainerRef.current)
+        }
+    }, [tail, tableData])
 
     const onUpdateWhere = useCallback((val: string) => {
         setPage(1)
@@ -347,6 +393,13 @@ export const TablePreviewInner = ({
             <div className='flex h-11 min-w-max shrink-0 items-center gap-2 border-b border-separator px-4'>
                 <Where value={whereSql} onChange={onUpdateWhere} columns={columnsData} />
                 <RefreshButton refreshing={isValidating} onRefresh={refreshAll} />
+                <Button
+                    title='Tail (auto-refresh and follow newest rows)'
+                    primary={tail}
+                    onClick={() => setTail(!tail)}
+                >
+                    {tail ? <IconPlayerPause size={16} stroke={1.5} /> : <IconPlayerPlay size={16} stroke={1.5} />}
+                </Button>
                 <ColumnsSort columns={columnsData} sort={sortColumn} onChange={setSortColumn} />
                 <ColumnsFilter
                     columns={columnsData}
@@ -385,6 +438,7 @@ export const TablePreviewInner = ({
                 persistent={Persistent.Permanent}
             >
                 <div
+                    ref={tableContainerRef}
                     className='relative flex h-full flex-col'
                     // TODO: Ideally events should be handled inside Table; currently this adds a second focus target alongside Table
                     // If only this div has focus, keyboard events won't propagate into Table

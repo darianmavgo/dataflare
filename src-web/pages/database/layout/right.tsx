@@ -3,6 +3,7 @@ import { Dashboard } from '../dashboard'
 import { TableEdit } from '../edit-table'
 import { ExtensionManager } from '../extension-manager'
 import { FunctionManager } from '../function-manager'
+import { useAutoOpenTable } from '../hooks/use-auto-open-table'
 import { TabType, useTabsStore } from '../hooks/use-store'
 import { KeyConsole } from '../key-console'
 import { KeyDetail } from '../key-detail'
@@ -15,6 +16,7 @@ import { Tabs } from './tabs'
 import { Welcome } from './welcome'
 
 export const Right = () => {
+    useAutoOpenTable()
     const tabsData = useTabsStore((state) => state.tabsData)
     const activeTab = useTabsStore((state) => state.activeTab)
 
