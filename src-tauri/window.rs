@@ -284,18 +284,31 @@ pub async fn open_sqlite_file(app: AppHandle, path: String, readonly: bool) -> R
         .await
         .map_err(|e| e.to_string())?;
 
-    let find = connections.into_iter().find(|c| match &c.config {
-        ConnectionConfig::SQLite(c) => c.path == path,
+    let mut config = conn_config(path.clone());
+    match config {
+        ConnectionConfig::SQLite(ref mut c) => c.readonly = readonly,
+        ConnectionConfig::DuckDB(ref mut c) => c.readonly = readonly,
+        _ => {}
+    }
+
+    let find = connections.into_iter().find(|c| match (&c.config, &config) {
+        (ConnectionConfig::SQLite(a), ConnectionConfig::SQLite(b)) => a.path == b.path,
+        (ConnectionConfig::DuckDB(a), ConnectionConfig::DuckDB(b)) => a.path == b.path,
         _ => false,
     });
 
     if let Some(mut conn) = find {
         let mut needs_update = false;
-        if let ConnectionConfig::SQLite(ref mut s) = conn.config {
-            if s.readonly != readonly {
+        match conn.config {
+            ConnectionConfig::SQLite(ref mut s) if s.readonly != readonly => {
                 s.readonly = readonly;
                 needs_update = true;
             }
+            ConnectionConfig::DuckDB(ref mut s) if s.readonly != readonly => {
+                s.readonly = readonly;
+                needs_update = true;
+            }
+            _ => {}
         }
         if needs_update {
             crate::client::update_connection(
@@ -310,11 +323,6 @@ pub async fn open_sqlite_file(app: AppHandle, path: String, readonly: bool) -> R
         new_database_window(app.clone(), conn, true, needs_update).await
     } else {
         let name = filename(&path);
-        let config = ConnectionConfig::SQLite(SqliteConfig {
-            path,
-            readonly,
-            initial: None,
-        });
         let cid = create_connection(client.clone(), name.clone(), config.clone())
             .await
             .map_err(|e| e.to_string())?;
@@ -328,7 +336,6 @@ pub fn pick_sqlite_file(app: &AppHandle, readonly: bool) {
     let app_handle = app.clone();
     app.dialog()
         .file()
-        .add_filter("SQLite Database", &["db", "sqlite", "sqlite3"])
         .pick_file(move |file_path| {
             if let Some(path) = file_path {
                 let path_str = match path {

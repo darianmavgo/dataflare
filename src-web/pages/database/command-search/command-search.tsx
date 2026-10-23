@@ -57,13 +57,7 @@ export default function CommnadSearchPopup({ onClose }: { onClose: () => void })
             case SearchType.OpenSqliteFile: {
                 open({
                     multiple: false,
-                    directory: false,
-                    filters: [
-                        {
-                            name: 'SQLite Database',
-                            extensions: ['db', 'sqlite', 'sqlite3']
-                        }
-                    ]
+                    directory: false
                 }).then((selected) => {
                     if (selected !== null) {
                         openSqliteFile(selected as string, true)

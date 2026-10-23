@@ -46,13 +46,7 @@ export const Main = () => {
     const onOpenSqlite = async () => {
         const selected = await open({
             multiple: false,
-            directory: false,
-            filters: [
-                {
-                    name: 'SQLite Database',
-                    extensions: ['db', 'sqlite', 'sqlite3']
-                }
-            ]
+            directory: false
         })
         if (selected !== null) {
             openSqliteFile(selected as string, true)
